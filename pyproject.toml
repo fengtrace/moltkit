@@ -11,6 +11,7 @@ requires-python = ">=3.10"
 
 [project.scripts]
 molten = "molten_cli.main:main"
+molten-mcp = "molten_mcp.server:main"
 
 [project.optional-dependencies]
 cli = ["typer>=0.12"]

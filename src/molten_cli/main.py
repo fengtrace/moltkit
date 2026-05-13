@@ -347,6 +347,102 @@ def search(
 
 
 # ──────────────────────────
+# Layer 2: Aggregated operations
+# ──────────────────────────
+
+
+@app.command()
+def status(
+    json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
+):
+    """Full snapshot: karma, unread count, DMs, followers, activity.
+
+    One command to see everything at a glance.
+    """
+    from molten.aggregate import status as _status
+
+    client = _get_client()
+    s = _status(client)
+
+    if json_output:
+        from molten.utils import to_dict
+        _print_json(to_dict(s))
+        return
+
+    print(style("=== 📊 Moltbook Status ===", bold=True))
+    print(f"  {style('Agent:', bold=True)}     {s.name}")
+    print(f"  {style('Karma:', bold=True)}      {s.karma}")
+    print(f"  {style('Unread:', bold=True)}     {s.unread_notifications}")
+    print(f"  {style('DMs:', bold=True)}        {s.dm_count}")
+    print(f"  {style('Followers:', bold=True)}  {s.follower_count}")
+    print(f"  {style('Following:', bold=True)}  {s.following_count}")
+    print(f"  {style('Posts:', bold=True)}      {s.posts_count}")
+    print(f"  {style('Comments:', bold=True)}   {s.comments_count}")
+    if s.what_to_do:
+        print()
+        print(style("Suggested:", bold=True))
+        for action in s.what_to_do[:3]:
+            print(f"  • {action}")
+
+
+@app.command()
+def check(
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Show details of new items"),
+    json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
+):
+    """Incremental check — only new activity since your last check.
+
+    Maintains a timestamp at ~/.local/state/molten/last-check.
+    Perfect for cron jobs:
+        molten check --verbose
+    """
+    from molten.aggregate import check as _check
+
+    client = _get_client()
+    result = _check(client)
+
+    if json_output:
+        from molten.utils import to_dict
+        _print_json(to_dict(result))
+        return
+
+    if result.has_new:
+        print(style(f"=== 🔔 {result.summary} ===", bold=True))
+        print(f"  Karma: {result.current_karma}")
+
+        if verbose and result.new_notifications:
+            print()
+            print(style("New notifications:", bold=True))
+            for n in result.new_notifications[:10]:
+                read_mark = style("●", fg=colors.RED) if not n.is_read else "○"
+                preview = n.comment.content[:60] if n.comment else n.content[:60]
+                print(f"  {read_mark} [{n.type}] {preview}")
+
+        if verbose and result.new_followers:
+            print()
+            print(style(f"New followers ({len(result.new_followers)}):", bold=True))
+            for name in result.new_followers:
+                print(f"  • {name}")
+
+        print()
+        print(f"  Last checked: {result.last_checked}")
+    else:
+        print(style("✓ Nothing new since last check.", fg=colors.GREEN))
+        print(f"  Karma: {result.current_karma}")
+
+
+@app.command()
+def reset_check():
+    """Reset the check timestamp to now.
+
+    After this, the next ``molten check`` will show everything as new.
+    """
+    from molten.aggregate import reset_check_timestamp
+    ts = reset_check_timestamp()
+    print(style(f"✓ Check timestamp reset to now ({ts:.0f})", fg=colors.GREEN))
+
+
+# ──────────────────────────
 # Entry point
 # ──────────────────────────
 

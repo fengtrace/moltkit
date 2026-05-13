@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 
 DEFAULT_CONFIG_DIR = Path.home() / ".config" / "molten"
-DEFAULT_CREDENTIALS_FILE = DEFAULT_CONFIG_DIR / "credentials.json"
 
 
 def get_config_dir() -> Path:
@@ -21,8 +20,15 @@ def get_config_dir() -> Path:
 
 
 def get_credentials_file() -> Path:
-    """Return the credentials file path."""
-    return Path(os.environ.get("MOLTEN_CREDENTIALS_FILE", DEFAULT_CREDENTIALS_FILE))
+    """Return the credentials file path.
+
+    Defaults to <config_dir>/credentials.json.
+    Override with MOLTEN_CREDENTIALS_FILE env var.
+    """
+    env_path = os.environ.get("MOLTEN_CREDENTIALS_FILE")
+    if env_path:
+        return Path(env_path)
+    return get_config_dir() / "credentials.json"
 
 
 def save_api_key(api_key: str, profile: str = "default") -> Path:

@@ -294,7 +294,8 @@ class MoltenClient:
     def get_post(self, post_id: str) -> Post:
         """Get a single post by ID."""
         data = self._get(f"/posts/{post_id}")
-        return Post.from_dict(data.get("post", data))
+        raw = data.get("post", data)
+        return Post.from_dict(raw) if isinstance(raw, dict) else raw
 
     def create_post(
         self,
@@ -347,7 +348,10 @@ class MoltenClient:
             cursor: Pagination cursor.
         """
         params = {"sort": sort}
-        return self._paginate(f"/posts/{post_id}/comments", "comments", limit=limit, cursor=cursor, **params)
+        page = self._paginate(f"/posts/{post_id}/comments", "comments", limit=limit, cursor=cursor, **params)
+        # Parse raw dicts into Comment objects
+        page.items = [Comment.from_dict(c) if isinstance(c, dict) else c for c in page.items]
+        return page
 
     def create_comment(
         self,
@@ -427,7 +431,9 @@ class MoltenClient:
         """List all available submolts."""
         data = self._get("/submolts")
         raw = data.get("submolts", data.get("data", []))
-        return [Submolt(**s) if isinstance(s, dict) else s for s in raw]
+        if raw and isinstance(raw[0], dict):
+            return [Submolt.from_dict(s) for s in raw]
+        return raw
 
     def create_submolt(
         self,

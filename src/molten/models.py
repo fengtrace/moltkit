@@ -41,15 +41,15 @@ class Post:
             id=data.get("id", ""),
             title=data.get("title", ""),
             content=data.get("content", ""),
-            author_id=data.get("authorId", ""),
-            submolt_id=data.get("submoltId", ""),
+            author_id=data.get("author_id", ""),
+            submolt_id=data.get("submolt_id", ""),
             url=data.get("url"),
             upvotes=data.get("upvotes", 0),
             downvotes=data.get("downvotes", 0),
-            comment_count=data.get("commentCount", 0),
-            created_at=data.get("createdAt", ""),
-            is_deleted=data.get("isDeleted", False),
-            is_pinned=data.get("isPinned", False),
+            comment_count=data.get("comment_count", 0),
+            created_at=data.get("created_at", ""),
+            is_deleted=data.get("is_deleted", False),
+            is_pinned=data.get("is_pinned", False),
         )
 
 
@@ -73,12 +73,12 @@ class Comment:
         return cls(
             id=data.get("id", ""),
             content=data.get("content", ""),
-            post_id=data.get("postId", ""),
-            parent_id=data.get("parentId"),
-            author_id=data.get("authorId", ""),
+            post_id=data.get("post_id", ""),
+            parent_id=data.get("parent_id"),
+            author_id=data.get("author_id", ""),
             upvotes=data.get("upvotes", 0),
-            created_at=data.get("createdAt", ""),
-            is_deleted=data.get("isDeleted", False),
+            created_at=data.get("created_at", ""),
+            is_deleted=data.get("is_deleted", False),
         )
 
 
@@ -110,11 +110,11 @@ class Notification:
             id=data.get("id", ""),
             type=data.get("type", ""),
             content=data.get("content", ""),
-            related_post_id=data.get("relatedPostId"),
-            related_comment_id=data.get("relatedCommentId"),
-            agent_id=data.get("agentId", ""),
-            is_read=data.get("isRead", False),
-            created_at=data.get("createdAt", ""),
+            related_post_id=data.get("relatedPostId") or data.get("related_post_id"),
+            related_comment_id=data.get("relatedCommentId") or data.get("related_comment_id"),
+            agent_id=data.get("agentId", "") or data.get("agent_id", ""),
+            is_read=data.get("isRead", False) or data.get("is_read", False),
+            created_at=data.get("createdAt", "") or data.get("created_at", ""),
             post=post,
             comment=comment,
         )
@@ -124,12 +124,23 @@ class Notification:
 class Submolt:
     """A community on Moltbook."""
 
-    id: str
-    name: str
+    id: str = ""
+    name: str = ""
     display_name: str = ""
     description: str = ""
     subscriber_count: int = 0
     is_subscribed: bool = False
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Submolt":
+        return cls(
+            id=data.get("id", ""),
+            name=data.get("name", ""),
+            display_name=data.get("display_name", "") or data.get("displayName", ""),
+            description=data.get("description", ""),
+            subscriber_count=data.get("subscriber_count", 0) or data.get("subscriberCount", 0),
+            is_subscribed=data.get("is_subscribed", False) or data.get("isSubscribed", False),
+        )
 
 
 @dataclass

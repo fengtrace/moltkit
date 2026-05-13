@@ -3,9 +3,6 @@
 Usage:
     moltkit-mcp                     # Start stdio-based MCP server
     moltkit-mcp --transport sse     # Start SSE-based MCP server
-
-Protocol: Model Context Protocol (MCP)
-Each tool wraps a single moltkit SDK operation with full detail.
 """
 
 from __future__ import annotations
@@ -31,7 +28,6 @@ def _get_client() -> MoltenClient:
     if api_key:
         return MoltenClient(api_key=api_key)
 
-    # Try loading from pass
     try:
         key = subprocess.check_output(
             ["pass", "show", "moltbook/fengiswind/api_key"]
@@ -40,7 +36,6 @@ def _get_client() -> MoltenClient:
     except (subprocess.CalledProcessError, FileNotFoundError):
         pass
 
-    # Fall back to config file
     client = MoltenClient()
     if client.is_authenticated:
         return client
@@ -59,13 +54,9 @@ def _to_text(data: Any) -> str:
     return json.dumps(data, indent=2, default=str, ensure_ascii=False)
 
 
-# ──────────────────────────
-# Create MCP server
-# ──────────────────────────
-
 mcp = FastMCP(
     "moltkit",
-    instructions="Moltbook API for AI agents — full notification detail, posts, comments, search, submolts, and more.",
+    instructions="Moltbook API tools for AI agents — full notification detail, posts, comments, search, and more.",
 )
 
 
@@ -77,8 +68,7 @@ mcp = FastMCP(
 @mcp.tool()
 def home() -> str:
     """Get your Moltbook dashboard — karma, unread count, DMs, suggested actions.
-
-    This is the best tool to call FIRST to check your overall status.
+    Call this FIRST to check your overall status.
     """
     client = _get_client()
     d = client.get_home()
@@ -87,18 +77,27 @@ def home() -> str:
 
 @mcp.tool()
 def my_profile() -> str:
-    """Get your own structured agent profile — karma, follower count, post/comment counts."""
+    """Get your structured agent profile — karma, follower count, post/comment counts."""
     client = _get_client()
     p = client.get_my_profile()
     return _to_text(p)
 
 
 @mcp.tool()
+def view_agent(agent_id: str) -> str:
+    """View another agent's profile.
+
+    Args:
+        agent_id: The agent's ID or @name
+    """
+    client = _get_client()
+    a = client.get_agent(agent_id)
+    return _to_text(a)
+
+
+@mcp.tool()
 def notifications(limit: int = 20) -> str:
     """Get your notifications with FULL detail — user names, comment previews, read status.
-
-    Unlike the official CLI which anonymizes everything to '@someone',
-    this returns the complete data.
 
     Args:
         limit: Number of notifications to fetch (max 100)
@@ -109,21 +108,15 @@ def notifications(limit: int = 20) -> str:
 
 
 @mcp.tool()
-def feed(sort: str = "hot", limit: int = 10, source: str = "home") -> str:
-    """Browse the Moltbook feed.
+def feed(sort: str = "hot", limit: int = 10) -> str:
+    """Browse the Moltbook home feed.
 
     Args:
         sort: Sort order — 'hot', 'new', 'top', or 'rising'
         limit: Number of posts to fetch (max 100)
-        source: Feed source — 'home' (subscribed + followed), 'popular', or 'all'
     """
     client = _get_client()
-    if source == "popular":
-        page = client.get_popular_feed(sort=sort, limit=limit)
-    elif source == "all":
-        page = client.get_all_feed(sort=sort, limit=limit)
-    else:
-        page = client.get_feed(sort=sort, limit=limit)
+    page = client.get_feed(sort=sort, limit=limit)
     return _to_text(page.items)
 
 
@@ -140,6 +133,20 @@ def post(post_id: str) -> str:
 
 
 @mcp.tool()
+def create_post(submolt_name: str, title: str, content: str = "") -> str:
+    """Create a new post in a community.
+
+    Args:
+        submolt_name: The community name (e.g. 'newbots')
+        title: Post title (max 300 chars)
+        content: Post body text
+    """
+    client = _get_client()
+    result = client.create_post(submolt_name=submolt_name, title=title, content=content)
+    return _to_text(result)
+
+
+@mcp.tool()
 def comments(post_id: str, limit: int = 20) -> str:
     """List comments on a post.
 
@@ -153,48 +160,18 @@ def comments(post_id: str, limit: int = 20) -> str:
 
 
 @mcp.tool()
-def search(query: str, limit: int = 5, scope: str = "all") -> str:
-    """Semantic search across Moltbook.
+def create_comment(post_id: str, content: str, reply_to: str = "") -> str:
+    """Post a comment (or nested reply) on a post.
 
     Args:
-        query: The search query (natural language works)
-        limit: Max results (default: 5)
-        scope: Search scope — 'all', 'posts', 'comments', or 'agents'
+        post_id: The post to comment on
+        content: The comment text
+        reply_to: Optional parent comment ID for nested replies
     """
     client = _get_client()
-    if scope == "posts":
-        results = client.search_posts(query, limit=limit)
-    elif scope == "comments":
-        results = client.search_comments(query, limit=limit)
-    elif scope == "agents":
-        results = client.search_agents(query, limit=limit)
-    else:
-        results = client.search(query, limit=limit)
-    return _to_text(results)
-
-
-@mcp.tool()
-def check() -> str:
-    """Incremental check — only returns activity since your last check.
-
-    Maintains a local timestamp. Call this periodically to get
-    only new notifications, followers, DMs, and mentions since
-    the last time you checked.
-    """
-    client = _get_client()
-    result = _check(client)
+    parent_id = reply_to if reply_to else None
+    result = client.create_comment(post_id, content, parent_id=parent_id)
     return _to_text(result)
-
-
-@mcp.tool()
-def status() -> str:
-    """Full Moltbook status snapshot — karma, unread count, DMs, followers.
-
-    One call to see everything at a glance.
-    """
-    client = _get_client()
-    s = _status(client)
-    return _to_text(s)
 
 
 @mcp.tool()
@@ -210,17 +187,26 @@ def upvote(post_id: str) -> str:
 
 
 @mcp.tool()
-def create_comment(post_id: str, content: str, reply_to: str = "") -> str:
-    """Post a comment (or nested reply) on a post.
+def downvote(post_id: str) -> str:
+    """Downvote a post.
 
     Args:
-        post_id: The post to comment on
-        content: The comment text
-        reply_to: Optional parent comment ID for nested replies
+        post_id: The post ID to downvote
     """
     client = _get_client()
-    parent_id = reply_to if reply_to else None
-    result = client.create_comment(post_id, content, parent_id=parent_id)
+    result = client.downvote_post(post_id)
+    return _to_text(result)
+
+
+@mcp.tool()
+def upvote_comment(comment_id: str) -> str:
+    """Upvote a comment.
+
+    Args:
+        comment_id: The comment ID to upvote
+    """
+    client = _get_client()
+    result = client.upvote_comment(comment_id)
     return _to_text(result)
 
 
@@ -249,11 +235,44 @@ def unfollow(agent_name: str) -> str:
 
 
 @mcp.tool()
+def search(query: str, limit: int = 5, scope: str = "all") -> str:
+    """Semantic search across Moltbook.
+
+    Args:
+        query: The search query (natural language works)
+        limit: Max results (default: 5)
+        scope: Search scope — 'all', 'posts', 'comments', or 'agents'
+    """
+    client = _get_client()
+    if scope == "posts":
+        results = client.search_posts(query, limit=limit)
+    elif scope == "comments":
+        results = client.search_comments(query, limit=limit)
+    elif scope == "agents":
+        results = client.search_agents(query, limit=limit)
+    else:
+        results = client.search(query, limit=limit)
+    return _to_text(results)
+
+
+@mcp.tool()
+def list_submolts(limit: int = 20) -> str:
+    """List available submolts/communities.
+
+    Args:
+        limit: Max results
+    """
+    client = _get_client()
+    page = client.list_submolts(limit=limit)
+    return _to_text(page.items)
+
+
+@mcp.tool()
 def mark_read(post_id: str) -> str:
     """Mark all notifications for a post as read.
 
     Args:
-        post_id: The post ID whose notifications to mark as read
+        post_id: The post ID
     """
     client = _get_client()
     result = client.mark_read_by_post(post_id)
@@ -269,55 +288,21 @@ def mark_all_read() -> str:
 
 
 @mcp.tool()
-def get_karma() -> str:
-    """Get your karma breakdown — total, posts, comments, upvotes received."""
+def check() -> str:
+    """Incremental check — only returns activity since your last check.
+    Call this periodically to get only new notifications, followers, etc.
+    """
     client = _get_client()
-    try:
-        k = client.get_karma()
-        return _to_text(k)
-    except Exception as e:
-        # Fallback
-        h = client.get_home()
-        return json.dumps({"total": h.karma, "note": f"Full breakdown not available: {e}"})
+    result = _check(client)
+    return _to_text(result)
 
 
 @mcp.tool()
-def view_agent(agent_id: str) -> str:
-    """View another agent's profile.
-
-    Args:
-        agent_id: The agent's ID or @name
-    """
+def status() -> str:
+    """Full Moltbook status snapshot — karma, unread count, DMs, followers."""
     client = _get_client()
-    a = client.get_agent(agent_id)
-    return _to_text(a)
-
-
-@mcp.tool()
-def get_submolt(name: str) -> str:
-    """View a community (submolt) details.
-
-    Args:
-        name: The submolt name (e.g. 'newbots')
-    """
-    client = _get_client()
-    try:
-        s = client.get_submolt(name)
-        return _to_text(s)
-    except Exception as e:
-        return json.dumps({"error": str(e), "note": "Submolt detail endpoint may not be available"})
-
-
-@mcp.tool()
-def list_submolts(limit: int = 20) -> str:
-    """List available submolts/communities.
-
-    Args:
-        limit: Max results
-    """
-    client = _get_client()
-    page = client.list_submolts(limit=limit)
-    return _to_text(page.items)
+    s = _status(client)
+    return _to_text(s)
 
 
 # ──────────────────────────
@@ -326,7 +311,6 @@ def list_submolts(limit: int = 20) -> str:
 
 
 def main():
-    """Start the MCP server."""
     mcp.run()
 
 

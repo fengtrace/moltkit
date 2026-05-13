@@ -3,23 +3,28 @@
 Usage:
     moltkit home                          # Dashboard summary
     moltkit profile                       # Structured profile
-    moltkit karma                         # Karma breakdown
     moltkit agent <name>                  # View other agent
     moltkit feed                          # Browse the feed
-    moltkit feed popular                  # Popular feed
-    moltkit feed all                      # All recent posts
     moltkit notifications                 # Full notifications with names
     moltkit posts                         # List posts
     moltkit post <id>                     # Get a single post
+    moltkit create-post <submolt> <title> # Create a new post
+    moltkit delete-post <id>              # Delete a post
+    moltkit comments <post_id>            # List comments
     moltkit comment <post_id> <text>      # Comment on a post
     moltkit search <query>                # Search posts
-    moltkit search posts|comments|agents  # Scoped search
-    moltkit submolt <name>                # View/join communities
-    moltkit subscribe|unsubscribe <name>  # Manage subscriptions
-    moltkit dm                            # DM activity
-    moltkit me                            # My profile (raw)
+    moltkit submolts                      # List communities
+    moltkit follow <name>                 # Follow an agent
+    moltkit unfollow <name>               # Unfollow an agent
+    moltkit upvote <post_id>              # Upvote a post
+    moltkit downvote <post_id>            # Downvote a post
+    moltkit upvote-comment <id>           # Upvote a comment
+    moltkit me                            # Raw profile (legacy)
     moltkit auth login <key>              # Save API key
     moltkit mark-read <post_id>           # Mark notifications as read
+    moltkit mark-all-read                 # Mark all read
+    moltkit status                        # Full status snapshot
+    moltkit check                         # Incremental check
 """
 
 from __future__ import annotations
@@ -35,7 +40,6 @@ except ImportError:
     sys.exit(1)
 
 from moltkit import MoltenClient, Notification, Post, Comment
-from moltkit.models import AgentProfile, KarmaBreakdown, Submolt
 from moltkit.utils import to_dict
 
 app = typer.Typer(
@@ -65,7 +69,7 @@ def _print_json(data) -> None:
 
 
 # ──────────────────────────
-# Auth
+# Home / Dashboard
 # ──────────────────────────
 
 
@@ -94,7 +98,7 @@ def home():
 
 @app.command()
 def profile(json_output: bool = typer.Option(False, "--json", help="Output raw JSON")):
-    """Show your agent profile (structured)."""
+    """Show your structured agent profile."""
     client = _get_client()
     p = client.get_my_profile()
 
@@ -111,30 +115,6 @@ def profile(json_output: bool = typer.Option(False, "--json", help="Output raw J
     print(f"  Comments:  {p.comments_count}")
     if p.description:
         print(f"\n  {p.description}")
-
-
-@app.command()
-def karma(json_output: bool = typer.Option(False, "--json", help="Output raw JSON")):
-    """Show your karma breakdown."""
-    client = _get_client()
-    try:
-        k = client.get_karma()
-    except Exception as e:
-        print(style(f"Karma endpoint not available: {e}", fg=colors.YELLOW))
-        # Fall back to dashboard
-        h = client.get_home()
-        print(f"\n  Total karma: {h.karma}")
-        return
-
-    if json_output:
-        _print_json(to_dict(k))
-        return
-
-    print(style("=== 🏆 Karma Breakdown ===", bold=True))
-    print(f"  Total:           {k.total}")
-    print(f"  From posts:      {k.posts}")
-    print(f"  From comments:   {k.comments}")
-    print(f"  Upvotes received: {k.upvotes_received}")
 
 
 @app.command()
@@ -202,6 +182,31 @@ def me(json: bool = typer.Option(False, "--json", help="Output raw JSON")):
 
 
 # ──────────────────────────
+# Follow / Unfollow
+# ──────────────────────────
+
+
+@app.command()
+def follow(
+    name: str = typer.Argument(..., help="Agent name to follow"),
+):
+    """Follow an agent."""
+    client = _get_client()
+    result = client.follow(name)
+    print(style(f"✓ Following @{name}", fg=colors.GREEN))
+
+
+@app.command()
+def unfollow(
+    name: str = typer.Argument(..., help="Agent name to unfollow"),
+):
+    """Unfollow an agent."""
+    client = _get_client()
+    result = client.unfollow(name)
+    print(style(f"✓ Unfollowed @{name}", fg=colors.GREEN))
+
+
+# ──────────────────────────
 # Feed
 # ──────────────────────────
 
@@ -211,31 +216,21 @@ def feed(
     sort: str = typer.Option("hot", "--sort", "-s", help="hot, new, top, rising"),
     limit: int = typer.Option(10, "--limit", "-l", help="Number of posts"),
     following: bool = typer.Option(False, "--following", "-f", help="Only from followed agents"),
-    source: str = typer.Option("home", "--source", help="home, popular, or all"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ):
-    """Browse the feed (home, popular, or all)."""
+    """Browse the home feed."""
     client = _get_client()
-
-    if source == "popular":
-        page = client.get_popular_feed(sort=sort, limit=limit)
-    elif source == "all":
-        page = client.get_all_feed(sort=sort, limit=limit)
-    else:
-        filter_by = "following" if following else None
-        page = client.get_feed(sort=sort, limit=limit, filter_by=filter_by)
+    filter_by = "following" if following else None
+    page = client.get_feed(sort=sort, limit=limit, filter_by=filter_by)
 
     if json_output:
-        _print_json([p.__dict__ if hasattr(p, '__dict__') else p for p in page.items])
+        _print_json([to_dict(p) for p in page.items])
         return
 
     for i, p in enumerate(page.items[:limit]):
-        title = p.get("title", "?") if isinstance(p, dict) else getattr(p, "title", "?")
-        author_id = p.get("authorId", "?") if isinstance(p, dict) else getattr(p, "author_id", "?")
-        votes = p.get("upvotes", 0) if isinstance(p, dict) else getattr(p, "upvotes", 0)
-        comments_count = p.get("commentCount", 0) if isinstance(p, dict) else getattr(p, "comment_count", 0)
-        print(f"\n{style(f'#{i+1}', bold=True)} {style(title, fg=colors.CYAN)}")
-        print(f"    by {author_id} | ⬆{votes} | 💬{comments_count}")
+        author_id = p.author_id or p.author.name if p.author else "?"
+        print(f"\n{style(f'#{i+1}', bold=True)} {style(p.title, fg=colors.CYAN)}")
+        print(f"    by {author_id} | ⬆{p.upvotes} | 💬{p.comment_count}")
 
 
 # ──────────────────────────
@@ -255,16 +250,40 @@ def posts(
     page = client.list_posts(sort=sort, limit=limit, submolt=submolt)
 
     if json_output:
-        _print_json([p.__dict__ if hasattr(p, '__dict__') else p for p in page.items])
+        _print_json([to_dict(p) for p in page.items])
         return
 
     for i, p in enumerate(page.items[:limit]):
-        title = p.get("title", "?") if isinstance(p, dict) else getattr(p, "title", "?")
-        author_id = p.get("authorId", "?") if isinstance(p, dict) else getattr(p, "author_id", "?")
-        votes = p.get("upvotes", 0) if isinstance(p, dict) else getattr(p, "upvotes", 0)
-        comments_count = p.get("commentCount", 0) if isinstance(p, dict) else getattr(p, "comment_count", 0)
-        print(f"\n{style(f'#{i+1}', bold=True)} {style(title, fg=colors.CYAN)}")
-        print(f"    by {author_id} | ⬆{votes} | 💬{comments_count}")
+        author_id = p.author_id or p.author.name if p.author else "?"
+        print(f"\n{style(f'#{i+1}', bold=True)} {style(p.title, fg=colors.CYAN)}")
+        print(f"    by {author_id} | ⬆{p.upvotes} | 💬{p.comment_count}")
+
+
+@app.command(name="create-post")
+def create_post(
+    submolt_name: str = typer.Argument(..., help="Community to post in (e.g. newbots)"),
+    title: str = typer.Argument(..., help="Post title"),
+    content: str = typer.Option("", "--content", "-c", help="Post body text"),
+    url: str = typer.Option(None, "--url", "-u", help="Link URL for link posts"),
+    json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
+):
+    """Create a new post in a community."""
+    client = _get_client()
+    result = client.create_post(submolt_name=submolt_name, title=title, content=content, url=url)
+    if json_output:
+        _print_json(result)
+    else:
+        print(style(f"✓ Post created in m/{submolt_name}", fg=colors.GREEN))
+
+
+@app.command(name="delete-post")
+def delete_post(
+    post_id: str = typer.Argument(..., help="Post ID to delete"),
+):
+    """Delete a post."""
+    client = _get_client()
+    client.delete_post(post_id)
+    print(style(f"✓ Post {post_id} deleted", fg=colors.GREEN))
 
 
 @app.command()
@@ -277,7 +296,7 @@ def post(
     p = client.get_post(post_id)
 
     if json_output:
-        _print_json(p.__dict__)
+        _print_json(to_dict(p))
         return
 
     print(style(f"=== {p.title} ===", bold=True))
@@ -288,32 +307,6 @@ def post(
         print(p.content[:500])
         if len(p.content) > 500:
             print("...")
-
-
-@app.command()
-def pin(
-    post_id: str = typer.Argument(..., help="Post ID to pin"),
-):
-    """Pin a post (moderator only)."""
-    client = _get_client()
-    try:
-        client.pin_post(post_id)
-        print(style(f"✓ Pinned {post_id}", fg=colors.GREEN))
-    except Exception as e:
-        print(style(f"✗ {e}", fg=colors.RED))
-
-
-@app.command()
-def unpin(
-    post_id: str = typer.Argument(..., help="Post ID to unpin"),
-):
-    """Unpin a post (moderator only)."""
-    client = _get_client()
-    try:
-        client.unpin_post(post_id)
-        print(style(f"✓ Unpinned {post_id}", fg=colors.GREEN))
-    except Exception as e:
-        print(style(f"✗ {e}", fg=colors.RED))
 
 
 # ──────────────────────────
@@ -361,6 +354,41 @@ def comment(
 
 
 # ──────────────────────────
+# Voting
+# ──────────────────────────
+
+
+@app.command()
+def upvote(
+    post_id: str = typer.Argument(..., help="Post ID to upvote"),
+):
+    """Upvote a post."""
+    client = _get_client()
+    client.upvote_post(post_id)
+    print(style(f"✓ Upvoted {post_id}", fg=colors.GREEN))
+
+
+@app.command()
+def downvote(
+    post_id: str = typer.Argument(..., help="Post ID to downvote"),
+):
+    """Downvote a post."""
+    client = _get_client()
+    client.downvote_post(post_id)
+    print(style(f"✓ Downvoted {post_id}", fg=colors.GREEN))
+
+
+@app.command(name="upvote-comment")
+def upvote_comment(
+    comment_id: str = typer.Argument(..., help="Comment ID to upvote"),
+):
+    """Upvote a comment."""
+    client = _get_client()
+    client.upvote_comment(comment_id)
+    print(style(f"✓ Upvoted comment {comment_id}", fg=colors.GREEN))
+
+
+# ──────────────────────────
 # Notifications
 # ──────────────────────────
 
@@ -402,21 +430,6 @@ def notifications(
         if preview:
             print(f"    {preview}")
         print(f"    {style(n.created_at[:10] if n.created_at else '', fg=colors.BLACK)}")
-
-
-# ──────────────────────────
-# Voting
-# ──────────────────────────
-
-
-@app.command()
-def upvote(
-    post_id: str = typer.Argument(..., help="Post ID to upvote"),
-):
-    """Upvote a post."""
-    client = _get_client()
-    result = client.upvote_post(post_id)
-    print(style(f"✓ Upvoted {post_id}", fg=colors.GREEN))
 
 
 # ──────────────────────────
@@ -468,55 +481,25 @@ def search(
 # ──────────────────────────
 
 
-@app.command()
-def submolt(
-    name: str = typer.Argument(..., help="Submolt name"),
+@app.command(name="submolts")
+def list_submolts(
+    sort: str = typer.Option("hot", "--sort", "-s", help="hot, new, subscribers"),
+    limit: int = typer.Option(20, "--limit", "-l", help="Number of communities"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ):
-    """View a community (submolt) details."""
+    """List available communities (submolts)."""
     client = _get_client()
-    try:
-        s = client.get_submolt(name)
-    except Exception as e:
-        print(style(f"Could not fetch submolt: {e}", fg=colors.YELLOW))
-        return
+    page = client.list_submolts(sort=sort, limit=limit)
 
     if json_output:
-        _print_json(to_dict(s))
+        _print_json([to_dict(s) for s in page.items])
         return
 
-    print(style(f"=== 📋 m/{s.name} ===", bold=True))
-    print(f"  Display:      {s.display_name}")
-    print(f"  Subscribers:  {s.subscriber_count}")
-    print(f"  Subscribed:   {'✅' if s.is_subscribed else '❌'}")
-    if s.description:
-        print(f"\n  {s.description}")
-
-
-@app.command()
-def subscribe(
-    name: str = typer.Argument(..., help="Submolt name"),
-):
-    """Subscribe to a community."""
-    client = _get_client()
-    try:
-        client.subscribe(name)
-        print(style(f"✓ Subscribed to m/{name}", fg=colors.GREEN))
-    except Exception as e:
-        print(style(f"✗ {e}", fg=colors.RED))
-
-
-@app.command()
-def unsubscribe(
-    name: str = typer.Argument(..., help="Submolt name"),
-):
-    """Unsubscribe from a community."""
-    client = _get_client()
-    try:
-        client.unsubscribe(name)
-        print(style(f"✓ Unsubscribed from m/{name}", fg=colors.GREEN))
-    except Exception as e:
-        print(style(f"✗ {e}", fg=colors.RED))
+    print(style(f"=== Communities ({len(page.items)}) ===", bold=True))
+    for i, s in enumerate(page.items[:limit]):
+        subscribed = "✓" if s.is_subscribed else " "
+        print(f"  [{subscribed}] {style(f'm/{s.name}', fg=colors.CYAN)}")
+        print(f"      {s.display_name} — {s.subscriber_count} subscribers")
 
 
 # ──────────────────────────
@@ -543,37 +526,6 @@ def mark_all_read():
 
 
 # ──────────────────────────
-# DM
-# ──────────────────────────
-
-
-@app.command()
-def dm(
-    json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
-):
-    """Check DM activity — pending requests and unread conversations."""
-    client = _get_client()
-    try:
-        activity = client.get_dm_activity()
-    except Exception as e:
-        print(style(f"DM endpoint not available: {e}", fg=colors.YELLOW))
-        return
-
-    if json_output:
-        _print_json(to_dict(activity))
-        return
-
-    print(style("=== 💬 DM Activity ===", bold=True))
-    print(f"  Pending requests:        {activity.request_count}")
-    print(f"  Unread conversations:    {activity.unread_conversation_count}")
-    if activity.conversations:
-        print()
-        print(style("Recent conversations:", bold=True))
-        for c in activity.conversations[:5]:
-            print(f"  • {c.agent_name} — {c.last_message[:40] if c.last_message else '(empty)'}")
-
-
-# ──────────────────────────
 # Layer 2: Aggregated operations
 # ──────────────────────────
 
@@ -582,10 +534,7 @@ def dm(
 def status(
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ):
-    """Full snapshot: karma, unread count, DMs, followers, activity.
-
-    One command to see everything at a glance.
-    """
+    """Full snapshot: karma, unread count, DMs, followers, activity."""
     from moltkit.aggregate import status as _status
 
     client = _get_client()
@@ -617,12 +566,7 @@ def check(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show details of new items"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ):
-    """Incremental check — only new activity since your last check.
-
-    Maintains a timestamp at ~/.local/state/moltkit/last-check.
-    Perfect for cron jobs:
-        moltkit check --verbose
-    """
+    """Incremental check — only new activity since your last check."""
     from moltkit.aggregate import check as _check
 
     client = _get_client()

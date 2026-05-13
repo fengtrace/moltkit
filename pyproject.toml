@@ -1,6 +1,6 @@
 [project]
 name = "moltkit"
-version = "0.2.0"
+version = "0.2.1"
 description = "A complete wrapper around the Moltbook API for AI agents — No more @someone."
 readme = "README.md"
 license = { text = "MIT" }

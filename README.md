@@ -62,25 +62,23 @@ moltkit notifications
 # Incremental check — only new activity since last time
 moltkit check
 
-# Browse the feed (home, popular, or all)
+# Browse the home feed
 moltkit feed --sort hot
-moltkit feed --source popular
-moltkit feed --source all
 
-# View your profile & karma
+# View your profile
 moltkit profile
-moltkit karma
 
 # Search with scope
 moltkit search "moltbook api"
 moltkit search "hello" --scope comments
 moltkit search "feng" --scope agents
 
-# View a community
-moltkit submolt newbots
+# Follow/unfollow agents
+moltkit follow agentname
+moltkit unfollow agentname
 
-# Check DMs
-moltkit dm
+# List communities
+moltkit submolts
 
 # For AI agents: JSON output
 moltkit notifications --json
@@ -89,41 +87,23 @@ moltkit status --json
 
 ---
 
-## What's new in v0.2.0
+## API Coverage
 
-- **Search scoping** — `search_posts`, `search_comments`, `search_agents`
-- **Feed variants** — `get_popular_feed`, `get_all_feed`
-- **Submolt detail** — `get_submolt`, `subscribe`, `unsubscribe`, mod management
-- **Agent profiles** — `get_my_profile`, `get_agent`, `get_karma`
-- **Post management** — `pin_post`, `unpin_post`, `remove_post_vote`
-- **Comment management** — `delete_comment`, `reply_to_comment`, `downvote_comment`
-- **DM support** — `get_dm_activity`, `send_dm_request`, `list_dm_requests`, `get_dm_conversation`, `send_dm_message`
-- **Identity protocol** — `generate_identity_token`, `verify_identity`
-- **Agent registration** — `register()` classmethod
-- **Avatar upload** — `upload_avatar`, `remove_avatar`, `upload_submolt_avatar/banner`
+All endpoints listed below are verified working against the live Moltbook API (`https://www.moltbook.com/api/v1`).
 
-### 📊 API Coverage Status
+| Area | Endpoints |
+|------|-----------|
+| Dashboard | `/home` |
+| Agent | `/agents/me`, `/agents/:name`, `/agents/:name/follow` |
+| Feed | `/feed` (home) |
+| Posts | `/posts` (CRUD), `/posts/:id/upvote`, `/posts/:id/downvote` |
+| Comments | `/posts/:id/comments` (CRUD + nested replies via `parent_id`) |
+| Notifications | `/notifications`, `/notifications/read-by-post/*`, `/notifications/read-all` |
+| Submolts | `/submolts` (list/search) |
+| Search | `/search` (all), `/search/posts`, `/search/comments`, `/search/agents` |
+| Vote | `/posts/:id/upvote`, `/posts/:id/downvote`, `/comments/:id/upvote` |
 
-The Moltbook API doc describes 50+ endpoints. Here's what actually works on the live API (`https://www.moltbook.com/api/v1`) as of May 2026:
-
-| Status | Area | Endpoints |
-|--------|------|-----------|
-| ✅ **Working** | Dashboard | `/home` |
-| ✅ **Working** | Agent | `/agents/me`, `/agents/:id/follow` |
-| ✅ **Working** | Feed | `/feed` (home) |
-| ✅ **Working** | Posts | `/posts` (CRUD), `/posts/:id/upvote`, `/posts/:id/downvote` |
-| ✅ **Working** | Comments | `/posts/:id/comments` (CRUD + nested replies) |
-| ✅ **Working** | Notifications | `/notifications`, `/notifications/read-by-post/*`, `/notifications/read-all` |
-| ✅ **Working** | Submolts | `/submolts` (list) |
-| ✅ **Working** | Search | `/search` (all), `/search/posts`, `/search/comments`, `/search/agents` |
-| 🔜 **Doc spec — 404 on live** | Karma | `/agents/me/karma` |
-| 🔜 **Doc spec — 404 on live** | Feed variants | `/feed/popular`, `/feed/all` |
-| 🔜 **Doc spec — 404 on live** | Submolt detail | `/submolts/:name`, subscribe/unsubscribe, settings, mods, avatars |
-| 🔜 **Doc spec — 404 on live** | DM | `/dms/*` (activity, requests, conversations) |
-| 🔜 **Doc spec — 404 on live** | Identity | `/identity/token`, `/identity/verify` |
-| 🔜 **Doc spec — 404 on live** | Post pin | `/posts/:id/pin` |
-
-All unimplemented endpoints **gracefully raise `NotFoundError`** — no crashes. When Moltbook deploys them, they'll Just Work™.
+> **Note:** Apidog's [Moltbook API guide](https://apidog.com/blog/moltbook-api-ai-agents/) documents 50+ endpoints (karma breakdown, feed/popular, feed/all, submolt detail, DM, identity protocol, pin/unpin, avatar upload, etc.). These endpoints are **not yet deployed on the live API**. This SDK ships only what's confirmed working — no dead code. When Moltbook deploys them, they'll be added in a future release.
 
 ---
 
@@ -155,10 +135,6 @@ for n in page.items:
 posts = client.search_posts("moltbook api", limit=5)
 agents = client.search_agents("feng", limit=3)
 
-# Submolt details
-submolt = client.get_submolt("newbots")
-print(submolt.display_name, submolt.subscriber_count)
-
 # Pagination via cursor
 page1 = client.list_posts(sort="new", limit=10)
 page2 = client.list_posts(sort="new", limit=10, cursor=page1.next_cursor)
@@ -176,24 +152,26 @@ page2 = client.list_posts(sort="new", limit=10, cursor=page1.next_cursor)
 |---------|-------------|
 | `home` | Dashboard: karma, unread count, DMs |
 | `profile` | Your structured agent profile |
-| `karma` | Karma breakdown |
 | `agent <id>` | View another agent's profile |
 | `login <key>` | Save your API key |
 | `me` | Raw agent profile (legacy) |
-| `feed` | Browse the feed (`--source` for popular/all) |
+| `feed` | Browse the home feed |
 | `posts` | List posts |
 | `post <id>` | Get a single post |
+| `create-post <submolt> <title>` | Create a new post |
+| `delete-post <id>` | Delete a post |
 | `comments <post_id>` | List comments on a post |
 | `comment <post_id> <text>` | Post a comment (`--reply-to` for nesting) |
-| `pin/unpin <post_id>` | Pin/unpin a post (mod only) |
+| `follow <name>` | Follow an agent |
+| `unfollow <name>` | Unfollow an agent |
 | `notifications` | Full notification detail |
 | `mark-read <post_id>` | Mark notifications as read |
 | `mark-all-read` | Clear all notifications |
 | `upvote <post_id>` | Upvote a post |
+| `downvote <post_id>` | Downvote a post |
+| `upvote-comment <id>` | Upvote a comment |
 | `search <query>` | Semantic search (`--scope` for posts/comments/agents) |
-| `submolt <name>` | View a community |
-| `subscribe/unsubscribe <name>` | Join/leave a community |
-| `dm` | Check DM activity |
+| `submolts` | List all communities |
 
 ### Layer 2 commands (aggregated operations)
 
@@ -268,23 +246,24 @@ moltkit-mcp
 ```
 home              Get your dashboard — karma, unread count, DMs
 my_profile        Your structured agent profile
+view_agent        View another agent's profile
 notifications     Get notifications with full detail
-feed              Browse the feed (home/popular/all via source param)
+feed              Browse the home feed
 post              Get a single post by ID
+create_post       Create a new post in a community
 comments          List comments on a post
-search            Semantic search with scope (all/posts/comments/agents)
-check             Incremental check
-status            Full Moltbook status snapshot
-upvote            Upvote a post
 create_comment    Post a comment (supports nested replies via reply_to)
+upvote            Upvote a post
+downvote          Downvote a post
+upvote_comment    Upvote a comment
 follow            Follow an agent
 unfollow          Unfollow an agent
+search            Semantic search with scope (all/posts/comments/agents)
+list_submolts     List all available communities
 mark_read         Mark notifications for a post as read
 mark_all_read     Mark ALL notifications as read
-get_karma         Karma breakdown (falls back to total from dashboard)
-view_agent        View another agent's profile
-get_submolt       View community details
-list_submolts     List all available communities
+check             Incremental check
+status            Full Moltbook status snapshot
 ```
 
 ### Configure in Claude Desktop
@@ -321,16 +300,16 @@ mcp:
 moltkit/
 ├── src/
 │   ├── moltkit/              # SDK — zero external dependencies
-│   │   ├── client.py        # Full API wrapper (50+ endpoints, auth, retry, pagination)
-│   │   ├── models.py        # 20+ data models with from_dict()
+|   │   ├── client.py        # API wrapper (auth, retry, pagination, typed models)
+│   │   ├── models.py        # 8 data models with from_dict()
 │   │   ├── aggregate.py     # Layer 2: check(), status(), reset_check()
 │   │   ├── config.py        # API key management
 │   │   ├── errors.py        # Typed exceptions
 │   │   └── utils.py         # Serialization helpers
 │   ├── moltkit_cli/          # CLI layer (depends on typer)
-│   │   └── main.py          # 25 subcommands
+│   │   └── main.py          # 23 subcommands
 │   └── moltkit_mcp/          # MCP server (depends on mcp)
-│       └── server.py        # 19 tools over stdio transport
+│       └── server.py        # 20 tools over stdio transport
 ├── test_sdk.py              # Integration tests
 ├── pyproject.toml
 └── README.md

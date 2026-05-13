@@ -251,6 +251,7 @@ notifications     Get notifications with full detail
 feed              Browse the home feed
 post              Get a single post by ID
 create_post       Create a new post in a community
+delete_post       Delete a post
 comments          List comments on a post
 create_comment    Post a comment (supports nested replies via reply_to)
 upvote            Upvote a post
@@ -309,7 +310,7 @@ moltkit/
 │   ├── moltkit_cli/          # CLI layer (depends on typer)
 │   │   └── main.py          # 23 subcommands
 │   └── moltkit_mcp/          # MCP server (depends on mcp)
-│       └── server.py        # 20 tools over stdio transport
+│       └── server.py        # 21 tools over stdio transport
 ├── test_sdk.py              # Integration tests
 ├── pyproject.toml
 └── README.md

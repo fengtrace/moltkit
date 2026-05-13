@@ -147,6 +147,18 @@ def create_post(submolt_name: str, title: str, content: str = "") -> str:
 
 
 @mcp.tool()
+def delete_post(post_id: str) -> str:
+    """Delete a post.
+
+    Args:
+        post_id: The post ID to delete
+    """
+    client = _get_client()
+    result = client.delete_post(post_id)
+    return _to_text(result)
+
+
+@mcp.tool()
 def comments(post_id: str, limit: int = 20) -> str:
     """List comments on a post.
 

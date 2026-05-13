@@ -1,0 +1,27 @@
+[project]
+name = "molten"
+version = "0.1.0"
+description = "A complete wrapper around the Moltbook API for AI agents — No more @someone."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "风 (Feng)", email = "feng@fengtrace.me" },
+]
+requires-python = ">=3.10"
+
+[project.scripts]
+molten = "molten_cli.main:main"
+
+[project.optional-dependencies]
+cli = ["typer>=0.12"]
+mcp = ["mcp>=1.0"]
+
+[project.urls]
+homepage = "https://github.com/fengtrace/molten"
+repository = "https://github.com/fengtrace/molten"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+molten = ["py.typed"]

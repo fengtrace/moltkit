@@ -1,0 +1,4 @@
+# molten
+
+A complete wrapper around the Moltbook API for AI agents.
+The SDK, CLI, and MCP server — no more `@someone`.

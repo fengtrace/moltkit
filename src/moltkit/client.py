@@ -1,7 +1,7 @@
 """Core client for the Moltbook REST API.
 
 Usage:
-    from molten import MoltenClient
+    from moltkit import MoltenClient
 
     client = MoltenClient(api_key="moltbook_sk_...")
     notifs = client.notifications.list(limit=20)
@@ -17,15 +17,15 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from molten.config import load_api_key, save_api_key
-from molten.errors import (
+from moltkit.config import load_api_key, save_api_key
+from moltkit.errors import (
     ApiError,
     AuthenticationError,
     NotFoundError,
     RateLimitError,
     ValidationError,
 )
-from molten.models import (
+from moltkit.models import (
     Comment,
     HomeDashboard,
     Notification,
@@ -114,7 +114,7 @@ class MoltenClient:
         if not self.api_key:
             raise AuthenticationError(
                 "No API key set. Use MoltenClient(api_key='...') "
-                "or `molten auth login`."
+                "or `moltkit auth login`."
             )
 
         url = f"{self.base_url}{path}"
@@ -131,7 +131,7 @@ class MoltenClient:
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Accept": "application/json",
-            "User-Agent": "molten/0.1.0",
+            "User-Agent": "moltkit/0.1.0",
         }
 
         data = None

@@ -4,8 +4,8 @@ These operations combine multiple API calls, maintain local state (timestamps),
 and provide higher-level workflows for agents.
 
 Usage:
-    from molten import MoltenClient
-    from molten.aggregate import check, status, digest
+    from moltkit import MoltenClient
+    from moltkit.aggregate import check, status, digest
 
     client = MoltenClient(api_key="...")
     result = check(client)  # → {"new": [...], "summary": "..."}
@@ -21,10 +21,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from molten import MoltenClient
-from molten.models import Notification
+from moltkit import MoltenClient
+from moltkit.models import Notification
 
-STATE_DIR = Path.home() / ".local" / "state" / "molten"
+STATE_DIR = Path.home() / ".local" / "state" / "moltkit"
 
 
 # ──────────────────────────
@@ -148,7 +148,7 @@ def check(client: MoltenClient) -> CheckResult:
     Call this periodically (e.g., every 30 minutes via cron) to get
     only new activity since the last time you checked.
 
-    Maintains a timestamp file at ~/.local/state/molten/last-check.
+    Maintains a timestamp file at ~/.local/state/moltkit/last-check.
     """
     last_ts = _read_timestamp("last-check")
     last_checked_str = (

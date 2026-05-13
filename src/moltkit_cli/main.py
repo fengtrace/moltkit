@@ -1,15 +1,15 @@
-"""molten CLI — A complete Moltbook API wrapper.
+"""moltkit CLI — A complete Moltbook API wrapper.
 
 Usage:
-    molten home                          # Dashboard summary
-    molten feed                          # Browse the feed
-    molten notifications                 # Full notifications with names
-    molten posts                         # List posts
-    molten post <id>                     # Get a single post
-    molten comment <post_id> <text>      # Comment on a post
-    molten me                            # My profile
-    molten auth login <key>              # Save API key
-    molten mark-read <post_id>           # Mark notifications as read
+    moltkit home                          # Dashboard summary
+    moltkit feed                          # Browse the feed
+    moltkit notifications                 # Full notifications with names
+    moltkit posts                         # List posts
+    moltkit post <id>                     # Get a single post
+    moltkit comment <post_id> <text>      # Comment on a post
+    moltkit me                            # My profile
+    moltkit auth login <key>              # Save API key
+    moltkit mark-read <post_id>           # Mark notifications as read
 """
 
 from __future__ import annotations
@@ -21,14 +21,14 @@ try:
     import typer
     from typer import colors, style
 except ImportError:
-    print("molten CLI requires extra deps: pip install molten[cli]", file=sys.stderr)
+    print("moltkit CLI requires extra deps: pip install moltkit[cli]", file=sys.stderr)
     sys.exit(1)
 
-from molten import MoltenClient, Notification, Post, Comment
-from molten.utils import to_dict
+from moltkit import MoltenClient, Notification, Post, Comment
+from moltkit.utils import to_dict
 
 app = typer.Typer(
-    name="molten",
+    name="moltkit",
     help="A complete wrapper around the Moltbook API — no more @someone.",
     no_args_is_help=True,
 )
@@ -40,7 +40,7 @@ def _get_client() -> MoltenClient:
     if not client.is_authenticated:
         print(
             style("No API key found.", fg=colors.RED),
-            "Use: molten auth login <your-key>",
+            "Use: moltkit auth login <your-key>",
         )
         sys.exit(1)
     return client
@@ -86,7 +86,7 @@ def login(key: str = typer.Argument(..., help="Your Moltbook API key (moltbook_s
     """Save your API key for future use."""
     client = MoltenClient(api_key=key)
     client.save_key()
-    print(style("✓ API key saved to ~/.config/molten/credentials.json", fg=colors.GREEN))
+    print(style("✓ API key saved to ~/.config/moltkit/credentials.json", fg=colors.GREEN))
 
 
 # ──────────────────────────
@@ -359,13 +359,13 @@ def status(
 
     One command to see everything at a glance.
     """
-    from molten.aggregate import status as _status
+    from moltkit.aggregate import status as _status
 
     client = _get_client()
     s = _status(client)
 
     if json_output:
-        from molten.utils import to_dict
+        from moltkit.utils import to_dict
         _print_json(to_dict(s))
         return
 
@@ -392,17 +392,17 @@ def check(
 ):
     """Incremental check — only new activity since your last check.
 
-    Maintains a timestamp at ~/.local/state/molten/last-check.
+    Maintains a timestamp at ~/.local/state/moltkit/last-check.
     Perfect for cron jobs:
-        molten check --verbose
+        moltkit check --verbose
     """
-    from molten.aggregate import check as _check
+    from moltkit.aggregate import check as _check
 
     client = _get_client()
     result = _check(client)
 
     if json_output:
-        from molten.utils import to_dict
+        from moltkit.utils import to_dict
         _print_json(to_dict(result))
         return
 
@@ -435,9 +435,9 @@ def check(
 def reset_check():
     """Reset the check timestamp to now.
 
-    After this, the next ``molten check`` will show everything as new.
+    After this, the next ``moltkit check`` will show everything as new.
     """
-    from molten.aggregate import reset_check_timestamp
+    from moltkit.aggregate import reset_check_timestamp
     ts = reset_check_timestamp()
     print(style(f"✓ Check timestamp reset to now ({ts:.0f})", fg=colors.GREEN))
 

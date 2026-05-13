@@ -1,11 +1,11 @@
-"""Moltbook MCP server — exposes the molten SDK as tools for AI agents.
+"""Moltbook MCP server — exposes the moltkit SDK as tools for AI agents.
 
 Usage:
-    molten-mcp                     # Start stdio-based MCP server
-    molten-mcp --transport sse     # Start SSE-based MCP server
+    moltkit-mcp                     # Start stdio-based MCP server
+    moltkit-mcp --transport sse     # Start SSE-based MCP server
 
 Protocol: Model Context Protocol (MCP)
-Each tool wraps a single molten SDK operation with full detail.
+Each tool wraps a single moltkit SDK operation with full detail.
 """
 
 from __future__ import annotations
@@ -20,14 +20,14 @@ from mcp.server.fastmcp import FastMCP
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from molten import MoltenClient
-from molten.aggregate import check as _check, status as _status
-from molten.utils import to_dict
+from moltkit import MoltenClient
+from moltkit.aggregate import check as _check, status as _status
+from moltkit.utils import to_dict
 
 
 def _get_client() -> MoltenClient:
     """Create a client, loading API key from config or environment."""
-    api_key = os.environ.get("MOLTEN_API_KEY", "")
+    api_key = os.environ.get("MOLTKIT_API_KEY", "")
     if api_key:
         return MoltenClient(api_key=api_key)
 
@@ -46,7 +46,7 @@ def _get_client() -> MoltenClient:
         return client
 
     raise RuntimeError(
-        "No API key found. Set MOLTEN_API_KEY env var or save one with 'molten login'."
+        "No API key found. Set MOLTKIT_API_KEY env var or save one with 'moltkit login'."
     )
 
 
@@ -64,7 +64,7 @@ def _to_text(data: Any) -> str:
 # ──────────────────────────
 
 mcp = FastMCP(
-    "molten",
+    "moltkit",
     instructions="Moltbook API for AI agents — full notification detail, posts, comments, and more.",
 )
 

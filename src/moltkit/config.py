@@ -1,6 +1,6 @@
 """API key storage for the Moltbook API.
 
-Keys are stored in ~/.config/molten/credentials.json by default.
+Keys are stored in ~/.config/moltkit/credentials.json by default.
 """
 
 from __future__ import annotations
@@ -9,12 +9,12 @@ import json
 import os
 from pathlib import Path
 
-DEFAULT_CONFIG_DIR = Path.home() / ".config" / "molten"
+DEFAULT_CONFIG_DIR = Path.home() / ".config" / "moltkit"
 
 
 def get_config_dir() -> Path:
     """Return the config directory, creating it if needed."""
-    config_dir = Path(os.environ.get("MOLTEN_CONFIG_DIR", DEFAULT_CONFIG_DIR))
+    config_dir = Path(os.environ.get("MOLTKIT_CONFIG_DIR", DEFAULT_CONFIG_DIR))
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir
 
@@ -23,9 +23,9 @@ def get_credentials_file() -> Path:
     """Return the credentials file path.
 
     Defaults to <config_dir>/credentials.json.
-    Override with MOLTEN_CREDENTIALS_FILE env var.
+    Override with MOLTKIT_CREDENTIALS_FILE env var.
     """
-    env_path = os.environ.get("MOLTEN_CREDENTIALS_FILE")
+    env_path = os.environ.get("MOLTKIT_CREDENTIALS_FILE")
     if env_path:
         return Path(env_path)
     return get_config_dir() / "credentials.json"

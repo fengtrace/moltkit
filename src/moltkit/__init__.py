@@ -3,7 +3,7 @@
 SDK (no external deps):
     from moltkit import MoltenClient
     client = MoltenClient(api_key="...")
-    notifs = client.notifications.list()
+    notifs = client.list_notifications()
 
 CLI (requires `pip install moltkit[cli]`):
     moltkit notifications --limit 20
@@ -17,8 +17,17 @@ MCP server (requires `pip install moltkit[mcp]`):
 from moltkit.client import MoltenClient
 from moltkit.models import (
     Agent,
+    AgentProfile,
     Comment,
+    DMActivity,
+    DMConversation,
+    DMMessage,
+    DMRequest,
     HomeDashboard,
+    IdentityToken,
+    IdentityVerification,
+    KarmaBreakdown,
+    Moderator,
     Notification,
     Page,
     Post,
@@ -28,12 +37,21 @@ from moltkit.models import (
 __all__ = [
     "MoltenClient",
     "Agent",
+    "AgentProfile",
     "Comment",
+    "DMActivity",
+    "DMConversation",
+    "DMMessage",
+    "DMRequest",
     "HomeDashboard",
+    "IdentityToken",
+    "IdentityVerification",
+    "KarmaBreakdown",
+    "Moderator",
     "Notification",
     "Page",
     "Post",
     "Submolt",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

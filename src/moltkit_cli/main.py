@@ -2,12 +2,22 @@
 
 Usage:
     moltkit home                          # Dashboard summary
+    moltkit profile                       # Structured profile
+    moltkit karma                         # Karma breakdown
+    moltkit agent <name>                  # View other agent
     moltkit feed                          # Browse the feed
+    moltkit feed popular                  # Popular feed
+    moltkit feed all                      # All recent posts
     moltkit notifications                 # Full notifications with names
     moltkit posts                         # List posts
     moltkit post <id>                     # Get a single post
     moltkit comment <post_id> <text>      # Comment on a post
-    moltkit me                            # My profile
+    moltkit search <query>                # Search posts
+    moltkit search posts|comments|agents  # Scoped search
+    moltkit submolt <name>                # View/join communities
+    moltkit subscribe|unsubscribe <name>  # Manage subscriptions
+    moltkit dm                            # DM activity
+    moltkit me                            # My profile (raw)
     moltkit auth login <key>              # Save API key
     moltkit mark-read <post_id>           # Mark notifications as read
 """
@@ -25,6 +35,7 @@ except ImportError:
     sys.exit(1)
 
 from moltkit import MoltenClient, Notification, Post, Comment
+from moltkit.models import AgentProfile, KarmaBreakdown, Submolt
 from moltkit.utils import to_dict
 
 app = typer.Typer(
@@ -77,6 +88,80 @@ def home():
 
 
 # ──────────────────────────
+# Profile
+# ──────────────────────────
+
+
+@app.command()
+def profile(json_output: bool = typer.Option(False, "--json", help="Output raw JSON")):
+    """Show your agent profile (structured)."""
+    client = _get_client()
+    p = client.get_my_profile()
+
+    if json_output:
+        _print_json(to_dict(p))
+        return
+
+    print(style(f"=== 👤 @{p.name} ===", bold=True))
+    print(f"  Karma:     {p.karma}")
+    print(f"  Status:    {p.status or 'active'}")
+    print(f"  Followers: {p.follower_count}")
+    print(f"  Following: {p.following_count}")
+    print(f"  Posts:     {p.posts_count}")
+    print(f"  Comments:  {p.comments_count}")
+    if p.description:
+        print(f"\n  {p.description}")
+
+
+@app.command()
+def karma(json_output: bool = typer.Option(False, "--json", help="Output raw JSON")):
+    """Show your karma breakdown."""
+    client = _get_client()
+    try:
+        k = client.get_karma()
+    except Exception as e:
+        print(style(f"Karma endpoint not available: {e}", fg=colors.YELLOW))
+        # Fall back to dashboard
+        h = client.get_home()
+        print(f"\n  Total karma: {h.karma}")
+        return
+
+    if json_output:
+        _print_json(to_dict(k))
+        return
+
+    print(style("=== 🏆 Karma Breakdown ===", bold=True))
+    print(f"  Total:           {k.total}")
+    print(f"  From posts:      {k.posts}")
+    print(f"  From comments:   {k.comments}")
+    print(f"  Upvotes received: {k.upvotes_received}")
+
+
+@app.command()
+def agent(
+    agent_id: str = typer.Argument(..., help="Agent ID or @name"),
+    json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
+):
+    """View another agent's profile."""
+    client = _get_client()
+    a = client.get_agent(agent_id)
+
+    if json_output:
+        _print_json(to_dict(a))
+        return
+
+    print(style(f"=== 👤 @{a.name} ===", bold=True))
+    print(f"  Karma:     {a.karma}")
+    print(f"  Status:    {a.status or 'active'}")
+    print(f"  Followers: {a.follower_count}")
+    print(f"  Following: {a.following_count}")
+    print(f"  Posts:     {a.posts_count}")
+    print(f"  Comments:  {a.comments_count}")
+    if a.description:
+        print(f"\n  {a.description}")
+
+
+# ──────────────────────────
 # Auth
 # ──────────────────────────
 
@@ -90,13 +175,13 @@ def login(key: str = typer.Argument(..., help="Your Moltbook API key (moltbook_s
 
 
 # ──────────────────────────
-# Me
+# Me (raw, legacy)
 # ──────────────────────────
 
 
 @app.command()
 def me(json: bool = typer.Option(False, "--json", help="Output raw JSON")):
-    """Show your agent profile."""
+    """Show your agent profile (raw JSON)."""
     client = _get_client()
     data = client.get_me()
     if json:
@@ -126,21 +211,31 @@ def feed(
     sort: str = typer.Option("hot", "--sort", "-s", help="hot, new, top, rising"),
     limit: int = typer.Option(10, "--limit", "-l", help="Number of posts"),
     following: bool = typer.Option(False, "--following", "-f", help="Only from followed agents"),
+    source: str = typer.Option("home", "--source", help="home, popular, or all"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ):
-    """Browse the feed."""
+    """Browse the feed (home, popular, or all)."""
     client = _get_client()
-    filter_by = "following" if following else None
-    page = client.get_feed(sort=sort, limit=limit, filter_by=filter_by)
+
+    if source == "popular":
+        page = client.get_popular_feed(sort=sort, limit=limit)
+    elif source == "all":
+        page = client.get_all_feed(sort=sort, limit=limit)
+    else:
+        filter_by = "following" if following else None
+        page = client.get_feed(sort=sort, limit=limit, filter_by=filter_by)
 
     if json_output:
-        _print_json([p.__dict__ for p in page.items])
+        _print_json([p.__dict__ if hasattr(p, '__dict__') else p for p in page.items])
         return
 
-    posts_raw = page.items if isinstance(page.items[0], dict) else [p.__dict__ for p in page.items]
     for i, p in enumerate(page.items[:limit]):
-        print(f"\n{style(f'#{i+1}', bold=True)} {style(p.get('title', '?'), fg=colors.CYAN)}")
-        print(f"    by {p.get('author', {}).get('name', '?')} | ⬆{p.get('upvotes', 0)} | 💬{p.get('commentCount', 0)}")
+        title = p.get("title", "?") if isinstance(p, dict) else getattr(p, "title", "?")
+        author_id = p.get("authorId", "?") if isinstance(p, dict) else getattr(p, "author_id", "?")
+        votes = p.get("upvotes", 0) if isinstance(p, dict) else getattr(p, "upvotes", 0)
+        comments_count = p.get("commentCount", 0) if isinstance(p, dict) else getattr(p, "comment_count", 0)
+        print(f"\n{style(f'#{i+1}', bold=True)} {style(title, fg=colors.CYAN)}")
+        print(f"    by {author_id} | ⬆{votes} | 💬{comments_count}")
 
 
 # ──────────────────────────
@@ -189,11 +284,36 @@ def post(
     print(f"  Upvotes: {p.upvotes} | Comments: {p.comment_count}")
     print(f"  ID: {p.id}")
     print()
-    # Show first 500 chars of content
     if p.content:
         print(p.content[:500])
         if len(p.content) > 500:
             print("...")
+
+
+@app.command()
+def pin(
+    post_id: str = typer.Argument(..., help="Post ID to pin"),
+):
+    """Pin a post (moderator only)."""
+    client = _get_client()
+    try:
+        client.pin_post(post_id)
+        print(style(f"✓ Pinned {post_id}", fg=colors.GREEN))
+    except Exception as e:
+        print(style(f"✗ {e}", fg=colors.RED))
+
+
+@app.command()
+def unpin(
+    post_id: str = typer.Argument(..., help="Post ID to unpin"),
+):
+    """Unpin a post (moderator only)."""
+    client = _get_client()
+    try:
+        client.unpin_post(post_id)
+        print(style(f"✓ Unpinned {post_id}", fg=colors.GREEN))
+    except Exception as e:
+        print(style(f"✗ {e}", fg=colors.RED))
 
 
 # ──────────────────────────
@@ -276,7 +396,7 @@ def notifications(
         if n.comment and n.comment.content:
             preview = n.comment.content[:80]
         elif n.type == "new_follower":
-            preview = n.content  # "xxx started following you"
+            preview = n.content
 
         print(f"\n{read_mark} {style(n.type, fg=colors.YELLOW, bold=True)}")
         if preview:
@@ -297,6 +417,106 @@ def upvote(
     client = _get_client()
     result = client.upvote_post(post_id)
     print(style(f"✓ Upvoted {post_id}", fg=colors.GREEN))
+
+
+# ──────────────────────────
+# Search
+# ──────────────────────────
+
+
+@app.command()
+def search(
+    query: str = typer.Argument(..., help="Search query"),
+    scope: str = typer.Option("all", "--scope", help="all, posts, comments, or agents"),
+    limit: int = typer.Option(10, "--limit", "-l"),
+    json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
+):
+    """Semantic search across Moltbook."""
+    client = _get_client()
+
+    if scope == "posts":
+        results = client.search_posts(query, limit=limit)
+    elif scope == "comments":
+        results = client.search_comments(query, limit=limit)
+    elif scope == "agents":
+        results = client.search_agents(query, limit=limit)
+    else:
+        results = client.search(query, limit=limit)
+
+    if json_output:
+        _print_json([to_dict(r) if hasattr(r, '__dataclass_fields__') else r for r in results])
+        return
+
+    if not results:
+        print(style("No results found.", fg=colors.YELLOW))
+        return
+
+    for i, r in enumerate(results):
+        if isinstance(r, Comment):
+            author = r.author_name or r.author_id[:8] if r.author_id else "?"
+            print(f"\n{style(f'#{i+1}', bold=True)} {style(f'@{author}', fg=colors.GREEN)}")
+            print(f"    {r.content[:200]}")
+        else:
+            title = getattr(r, "title", getattr(r, "name", "?"))
+            votes = getattr(r, "upvotes", 0) or getattr(r, "karma", 0)
+            print(f"\n{style(f'#{i+1}', bold=True)} {style(str(title)[:60], fg=colors.CYAN)}")
+            print(f"    ⬆{votes}")
+
+
+# ──────────────────────────
+# Submolts
+# ──────────────────────────
+
+
+@app.command()
+def submolt(
+    name: str = typer.Argument(..., help="Submolt name"),
+    json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
+):
+    """View a community (submolt) details."""
+    client = _get_client()
+    try:
+        s = client.get_submolt(name)
+    except Exception as e:
+        print(style(f"Could not fetch submolt: {e}", fg=colors.YELLOW))
+        return
+
+    if json_output:
+        _print_json(to_dict(s))
+        return
+
+    print(style(f"=== 📋 m/{s.name} ===", bold=True))
+    print(f"  Display:      {s.display_name}")
+    print(f"  Subscribers:  {s.subscriber_count}")
+    print(f"  Subscribed:   {'✅' if s.is_subscribed else '❌'}")
+    if s.description:
+        print(f"\n  {s.description}")
+
+
+@app.command()
+def subscribe(
+    name: str = typer.Argument(..., help="Submolt name"),
+):
+    """Subscribe to a community."""
+    client = _get_client()
+    try:
+        client.subscribe(name)
+        print(style(f"✓ Subscribed to m/{name}", fg=colors.GREEN))
+    except Exception as e:
+        print(style(f"✗ {e}", fg=colors.RED))
+
+
+@app.command()
+def unsubscribe(
+    name: str = typer.Argument(..., help="Submolt name"),
+):
+    """Unsubscribe from a community."""
+    client = _get_client()
+    try:
+        client.unsubscribe(name)
+        print(style(f"✓ Unsubscribed from m/{name}", fg=colors.GREEN))
+    except Exception as e:
+        print(style(f"✗ {e}", fg=colors.RED))
 
 
 # ──────────────────────────
@@ -323,27 +543,34 @@ def mark_all_read():
 
 
 # ──────────────────────────
-# Search
+# DM
 # ──────────────────────────
 
 
 @app.command()
-def search(
-    query: str = typer.Argument(..., help="Search query"),
-    limit: int = typer.Option(10, "--limit", "-l"),
+def dm(
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ):
-    """Semantic search across Moltbook posts."""
+    """Check DM activity — pending requests and unread conversations."""
     client = _get_client()
-    results = client.search(query, limit=limit)
-
-    if json_output:
-        _print_json([r.__dict__ for r in results])
+    try:
+        activity = client.get_dm_activity()
+    except Exception as e:
+        print(style(f"DM endpoint not available: {e}", fg=colors.YELLOW))
         return
 
-    for i, p in enumerate(results):
-        print(f"\n{style(f'#{i+1}', bold=True)} {style(p.title, fg=colors.CYAN)}")
-        print(f"    ⬆{p.upvotes} | 💬{p.comment_count}")
+    if json_output:
+        _print_json(to_dict(activity))
+        return
+
+    print(style("=== 💬 DM Activity ===", bold=True))
+    print(f"  Pending requests:        {activity.request_count}")
+    print(f"  Unread conversations:    {activity.unread_conversation_count}")
+    if activity.conversations:
+        print()
+        print(style("Recent conversations:", bold=True))
+        for c in activity.conversations[:5]:
+            print(f"  • {c.agent_name} — {c.last_message[:40] if c.last_message else '(empty)'}")
 
 
 # ──────────────────────────

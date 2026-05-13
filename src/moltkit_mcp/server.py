@@ -65,7 +65,7 @@ def _to_text(data: Any) -> str:
 
 mcp = FastMCP(
     "moltkit",
-    instructions="Moltbook API for AI agents — full notification detail, posts, comments, and more.",
+    instructions="Moltbook API for AI agents — full notification detail, posts, comments, search, submolts, and more.",
 )
 
 
@@ -86,6 +86,14 @@ def home() -> str:
 
 
 @mcp.tool()
+def my_profile() -> str:
+    """Get your own structured agent profile — karma, follower count, post/comment counts."""
+    client = _get_client()
+    p = client.get_my_profile()
+    return _to_text(p)
+
+
+@mcp.tool()
 def notifications(limit: int = 20) -> str:
     """Get your notifications with FULL detail — user names, comment previews, read status.
 
@@ -101,15 +109,21 @@ def notifications(limit: int = 20) -> str:
 
 
 @mcp.tool()
-def feed(sort: str = "hot", limit: int = 10) -> str:
+def feed(sort: str = "hot", limit: int = 10, source: str = "home") -> str:
     """Browse the Moltbook feed.
 
     Args:
         sort: Sort order — 'hot', 'new', 'top', or 'rising'
         limit: Number of posts to fetch (max 100)
+        source: Feed source — 'home' (subscribed + followed), 'popular', or 'all'
     """
     client = _get_client()
-    page = client.get_feed(sort=sort, limit=limit)
+    if source == "popular":
+        page = client.get_popular_feed(sort=sort, limit=limit)
+    elif source == "all":
+        page = client.get_all_feed(sort=sort, limit=limit)
+    else:
+        page = client.get_feed(sort=sort, limit=limit)
     return _to_text(page.items)
 
 
@@ -139,23 +153,23 @@ def comments(post_id: str, limit: int = 20) -> str:
 
 
 @mcp.tool()
-def my_profile() -> str:
-    """Get your own agent profile — karma, follower count, post/comment counts."""
-    client = _get_client()
-    data = client.get_me()
-    return _to_text(data)
-
-
-@mcp.tool()
-def search(query: str, limit: int = 5) -> str:
-    """Semantic search across Moltbook posts.
+def search(query: str, limit: int = 5, scope: str = "all") -> str:
+    """Semantic search across Moltbook.
 
     Args:
         query: The search query (natural language works)
         limit: Max results (default: 5)
+        scope: Search scope — 'all', 'posts', 'comments', or 'agents'
     """
     client = _get_client()
-    results = client.search(query, limit=limit)
+    if scope == "posts":
+        results = client.search_posts(query, limit=limit)
+    elif scope == "comments":
+        results = client.search_comments(query, limit=limit)
+    elif scope == "agents":
+        results = client.search_agents(query, limit=limit)
+    else:
+        results = client.search(query, limit=limit)
     return _to_text(results)
 
 
@@ -252,6 +266,58 @@ def mark_all_read() -> str:
     client = _get_client()
     result = client.mark_all_read()
     return _to_text(result)
+
+
+@mcp.tool()
+def get_karma() -> str:
+    """Get your karma breakdown — total, posts, comments, upvotes received."""
+    client = _get_client()
+    try:
+        k = client.get_karma()
+        return _to_text(k)
+    except Exception as e:
+        # Fallback
+        h = client.get_home()
+        return json.dumps({"total": h.karma, "note": f"Full breakdown not available: {e}"})
+
+
+@mcp.tool()
+def view_agent(agent_id: str) -> str:
+    """View another agent's profile.
+
+    Args:
+        agent_id: The agent's ID or @name
+    """
+    client = _get_client()
+    a = client.get_agent(agent_id)
+    return _to_text(a)
+
+
+@mcp.tool()
+def get_submolt(name: str) -> str:
+    """View a community (submolt) details.
+
+    Args:
+        name: The submolt name (e.g. 'newbots')
+    """
+    client = _get_client()
+    try:
+        s = client.get_submolt(name)
+        return _to_text(s)
+    except Exception as e:
+        return json.dumps({"error": str(e), "note": "Submolt detail endpoint may not be available"})
+
+
+@mcp.tool()
+def list_submolts(limit: int = 20) -> str:
+    """List available submolts/communities.
+
+    Args:
+        limit: Max results
+    """
+    client = _get_client()
+    page = client.list_submolts(limit=limit)
+    return _to_text(page.items)
 
 
 # ──────────────────────────

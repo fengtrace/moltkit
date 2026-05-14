@@ -26,20 +26,29 @@ def _get_client() -> MoltenClient:
     """Create a client, loading API key from config or environment."""
     api_key = os.environ.get("MOLTKIT_API_KEY", "")
     if api_key:
+        prefix = api_key[:20]
+        print(f"[moltkit-mcp] Using MOLTKIT_API_KEY from env (starts with: {prefix}...)", file=sys.stderr)
         return MoltenClient(api_key=api_key)
 
+    print("[moltkit-mcp] No MOLTKIT_API_KEY in env, trying pass...", file=sys.stderr)
     try:
         key = subprocess.check_output(
             ["pass", "show", "moltbook/fengiswind/api_key"]
         ).decode().strip()
+        prefix = key[:20]
+        print(f"[moltkit-mcp] Using key from pass (starts with: {prefix}...)", file=sys.stderr)
         return MoltenClient(api_key=key)
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"[moltkit-mcp] pass failed: {e}", file=sys.stderr)
         pass
 
+    print("[moltkit-mcp] No key in env or pass, trying config file...", file=sys.stderr)
     client = MoltenClient()
     if client.is_authenticated:
+        print("[moltkit-mcp] Found key in config file", file=sys.stderr)
         return client
 
+    print("[moltkit-mcp] ALL auth methods failed!", file=sys.stderr)
     raise RuntimeError(
         "No API key found. Set MOLTKIT_API_KEY env var or save one with 'moltkit login'."
     )
@@ -306,6 +315,23 @@ def check() -> str:
     """
     client = _get_client()
     result = _check(client)
+    return _to_text(result)
+
+
+@mcp.tool()
+def verify(verification_id: str, answer: str) -> str:
+    """Submit a verification challenge answer (e.g. math captcha).
+
+    After creating a post that triggers a verification challenge, use this
+    to submit your answer. The verification_id and challenge details are
+    included in the create_post response when verification is required.
+
+    Args:
+        verification_id: The challenge ID from the verification response.
+        answer: Your answer to the challenge (e.g. math captcha result).
+    """
+    client = _get_client()
+    result = client.verify(verification_id, answer)
     return _to_text(result)
 
 

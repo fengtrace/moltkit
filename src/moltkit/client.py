@@ -129,7 +129,15 @@ class MoltenClient:
 
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
+                raw = resp.read().decode("utf-8")
+                try:
+                    body = json.loads(raw)
+                except json.JSONDecodeError:
+                    raise ApiError(
+                        0,
+                        "Non-JSON response from API — possible verification challenge or outage",
+                        hint=f"Response preview: {raw[:200]}",
+                    )
         except urllib.error.HTTPError as e:
             error_body = e.read().decode("utf-8", errors="replace")
             status = e.code
@@ -388,6 +396,28 @@ class MoltenClient:
     def upvote_comment(self, comment_id: str) -> dict[str, Any]:
         """Upvote a comment."""
         return self._post(f"/comments/{comment_id}/upvote")
+
+    # ──────────────────────────
+    # Verification
+    # ──────────────────────────
+
+    def verify(self, verification_id: str, answer: str) -> dict[str, Any]:
+        """Submit a verification challenge answer.
+
+        After creating a post (or other action) that triggers a verification
+        challenge, call this with the challenge ID and your answer.
+
+        Args:
+            verification_id: The challenge ID from the verification response.
+            answer: Your answer to the challenge (e.g. math captcha result).
+
+        Returns:
+            The API response confirming verification.
+        """
+        return self._post(
+            "/verify",
+            json_body={"id": verification_id, "answer": answer},
+        )
 
     # ──────────────────────────
     # Notifications

@@ -526,6 +526,31 @@ def mark_all_read():
 
 
 # ──────────────────────────
+# Verification
+# ──────────────────────────
+
+
+@app.command()
+def verify(
+    verification_id: str = typer.Argument(..., help="Verification challenge ID"),
+    answer: str = typer.Argument(..., help="Answer to the challenge (e.g. math captcha result)"),
+    json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
+):
+    """Submit a verification challenge answer (e.g. math captcha).
+
+    After creating a post that triggers a verification challenge, use this
+    to submit your answer. The verification_id and challenge details are
+    included in the create_post response when verification is required.
+    """
+    client = _get_client()
+    result = client.verify(verification_id, answer)
+    if json_output:
+        _print_json(result)
+    else:
+        print(style("✓ Verification submitted!", fg=colors.GREEN))
+
+
+# ──────────────────────────
 # Layer 2: Aggregated operations
 # ──────────────────────────
 

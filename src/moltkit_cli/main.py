@@ -318,6 +318,7 @@ def post(
 def comments(
     post_id: str = typer.Argument(..., help="Post ID"),
     limit: int = typer.Option(20, "--limit", "-l", help="Number of comments"),
+    truncate_len: int = typer.Option(80, "--truncate-len", "-n", help="Limit to first N characters"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ):
     """List comments on a post, with full content (not truncated)."""
@@ -330,11 +331,19 @@ def comments(
         return
 
     for i, c in enumerate(page.items[:limit]):
-        author = c.author_name or c.author_id[:8] if c.author_id else "?"
+        if c.author_name:
+            author = c.author_name
+        elif c.author_id:
+            author = c.author_id[:8]
+        else:
+            author = "?"
+            
+        content = c.content
+        if truncate_len > 0:
+            content = content[:truncate_len] + "\n    ..."
+            
         print(f"\n{style(f'#{i+1}', bold=True)} {style(f'@{author}', fg=colors.GREEN)}")
-        print(f"    {c.content[:200]}")
-        if len(c.content) > 200:
-            print("    ...")
+        print(f"    {content}")
 
 
 @app.command()
@@ -397,6 +406,7 @@ def upvote_comment(
 def notifications(
     limit: int = typer.Option(20, "--limit", "-l", help="Number of notifications"),
     unread: bool = typer.Option(False, "--unread", "-u", help="Show only unread"),
+    truncate_len: int = typer.Option(80, "--truncate-len", "-n", help="Limit to first N characters for comments"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ):
     """List notifications with FULL detail — user names, comment previews, read status.
@@ -422,9 +432,12 @@ def notifications(
         read_mark = style("●", fg=colors.RED) if not n.is_read else style("○", fg=colors.BLACK)
         preview = ""
         if n.comment and n.comment.content:
-            preview = n.comment.content[:80]
+            preview = n.comment.content
         elif n.type == "new_follower":
             preview = n.content
+
+        if truncate_len > 0:
+            preview = preview[:truncate_len] + "\n    ..."
 
         print(f"\n{read_mark} {style(n.type, fg=colors.YELLOW, bold=True)}")
         if preview:
@@ -442,6 +455,7 @@ def search(
     query: str = typer.Argument(..., help="Search query"),
     scope: str = typer.Option("all", "--scope", help="all, posts, comments, or agents"),
     limit: int = typer.Option(10, "--limit", "-l"),
+    truncate_len: int = typer.Option(200, "--truncate-len", "-n", help="Limit to first N characters"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ):
     """Semantic search across Moltbook."""
@@ -466,13 +480,23 @@ def search(
 
     for i, r in enumerate(results):
         if isinstance(r, Comment):
-            author = r.author_name or r.author_id[:8] if r.author_id else "?"
+            if r.author_name:
+                author = r.author_name
+            elif r.author_id:
+                author = r.author_id[:8]
+            else:
+                author = "?"
+                
+            content = r.content
+            if truncate_len > 0:
+                content = content[:truncate_len] + "\n    ..."
+                
             print(f"\n{style(f'#{i+1}', bold=True)} {style(f'@{author}', fg=colors.GREEN)}")
-            print(f"    {r.content[:200]}")
+            print(f"    {content}")
         else:
             title = getattr(r, "title", getattr(r, "name", "?"))
             votes = getattr(r, "upvotes", 0) or getattr(r, "karma", 0)
-            print(f"\n{style(f'#{i+1}', bold=True)} {style(str(title)[:60], fg=colors.CYAN)}")
+            print(f"\n{style(f'#{i+1}', bold=True)} {style(str(title), fg=colors.CYAN)}")
             print(f"    ⬆{votes}")
 
 
@@ -589,6 +613,8 @@ def status(
 @app.command()
 def check(
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Show details of new items"),
+    limit: int = typer.Option(10, "--limit", "-l", help="Number of notifications"),
+    truncate_len: int = typer.Option(60, "--truncate-len", "-n", help="Limit to first N characters"),
     json_output: bool = typer.Option(False, "--json", help="Output raw JSON"),
 ):
     """Incremental check — only new activity since your last check."""
@@ -609,9 +635,11 @@ def check(
         if verbose and result.new_notifications:
             print()
             print(style("New notifications:", bold=True))
-            for n in result.new_notifications[:10]:
+            for n in result.new_notifications[:limit]:
                 read_mark = style("●", fg=colors.RED) if not n.is_read else "○"
-                preview = n.comment.content[:60] if n.comment else n.content[:60]
+                preview = n.comment.content if n.comment else n.content
+                if truncate_len > 0:
+                    preview = preview[:truncate_len] + "\n    ..."
                 print(f"  {read_mark} [{n.type}] {preview}")
 
         if verbose and result.new_followers:
